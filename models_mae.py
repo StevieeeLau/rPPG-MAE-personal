@@ -28,8 +28,10 @@ class MaskedAutoencoderViT(nn.Module):
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
         super().__init__()
 
+
+        ### 1. Intialisation of model components 
         # --------------------------------------------------------------------------
-        # MAE encoder specifics
+        # 1.1 initialisation of model components - MAE encoder specifics
         self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
         num_patches = self.patch_embed.num_patches
 
@@ -44,7 +46,7 @@ class MaskedAutoencoderViT(nn.Module):
         # --------------------------------------------------------------------------
 
         # --------------------------------------------------------------------------
-        # MAE decoder specifics
+        # 1.2. initialisation of model components - MAE decoder specifics
         self.decoder_embed = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
@@ -63,8 +65,11 @@ class MaskedAutoencoderViT(nn.Module):
 
         self.initialize_weights()
 
+
+    ### 2. Weight intialisation
+    # --------------------------------------------------------------------------
     def initialize_weights(self):
-        # initialization
+        # 2.1 Initialise Positional Embeddings
         # initialize (and freeze) pos_embed by sin-cos embedding
         pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
         self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
@@ -72,15 +77,17 @@ class MaskedAutoencoderViT(nn.Module):
         decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1], int(self.patch_embed.num_patches**.5), cls_token=True)
         self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
 
+        # 2.2 Initialise Patch Embeddings
         # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
         w = self.patch_embed.proj.weight.data
         torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
 
+        # 2.3 Initialise Class Token and Mask Token
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
         torch.nn.init.normal_(self.cls_token, std=.02)
         torch.nn.init.normal_(self.mask_token, std=.02)
-
-        # initialize nn.Linear and nn.LayerNorm
+        
+        # 2.4 Initialise nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -93,6 +100,10 @@ class MaskedAutoencoderViT(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
+
+    ### 3. Helper Methods
+    # --------------------------------------------------------------------------
+    # 3.1 Patchify and Unpatchify
     def patchify(self, imgs):
         """
         imgs: (N, 3, H, W)
@@ -121,6 +132,7 @@ class MaskedAutoencoderViT(nn.Module):
         imgs = x.reshape(shape=(x.shape[0], self.in_chans, h * p, h * p))
         return imgs
 
+    # 3.2 Random Masking 
     def random_masking(self, x, mask_ratio):
         """
         Perform per-sample random masking by per-sample shuffling.
@@ -147,7 +159,11 @@ class MaskedAutoencoderViT(nn.Module):
         mask = torch.gather(mask, dim=1, index=ids_restore)
 
         return x_masked, mask, ids_restore
-
+    
+    
+    ### 4. Forward Methods:
+    # --------------------------------------------------------------------------
+    # 4.1 Forward Encoder
     def forward_encoder(self, x, mask_ratio):
         # embed patches
         x = self.patch_embed(x)
@@ -170,6 +186,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x, mask, ids_restore
 
+    # 4.2 Forward Decoder
     def forward_decoder(self, x, ids_restore):
         # embed tokens
         x = self.decoder_embed(x)
@@ -196,6 +213,9 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x
 
+
+    ### 5. Loss Calculation (Forward Loss)
+    # --------------------------------------------------------------------------
     def forward_loss(self, imgs, pred, mask):
         """
         imgs: [N, 3, H, W]
@@ -214,6 +234,9 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
 
+
+    ### 6. Main Forward Method (Forward Pass)
+    # --------------------------------------------------------------------------
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
