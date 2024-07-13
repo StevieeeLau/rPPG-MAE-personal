@@ -29,7 +29,7 @@ class MaskedAutoencoderViT(nn.Module):
         super().__init__()
 
 
-        ### 1. Intialisation of model components 
+        ### 1. Initialisation of model components 
         # --------------------------------------------------------------------------
         # 1.1 initialisation of model components - MAE encoder specifics
         self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
