@@ -214,7 +214,7 @@ class MaskedAutoencoderViT(nn.Module):
         return x
 
 
-    ### 5. Loss Calculation (Forward Loss)
+    ### 5. Loss Calculation (Forward Loss) - Calculates reconstruction loss for the autoencoder
     # --------------------------------------------------------------------------
     def forward_loss(self, imgs, pred, mask):
         """
@@ -222,16 +222,17 @@ class MaskedAutoencoderViT(nn.Module):
         pred: [N, L, p*p*3]
         mask: [N, L], 0 is keep, 1 is remove, 
         """
-        target = self.patchify(imgs)
-        if self.norm_pix_loss:
+        target = self.patchify(imgs) # convert images into patches
+        if self.norm_pix_loss:  # Normalise pixel values
             mean = target.mean(dim=-1, keepdim=True)
             var = target.var(dim=-1, keepdim=True)
             target = (target - mean) / (var + 1.e-6)**.5
 
+        # Compute loss
         loss = (pred - target) ** 2
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
-        loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+        loss = (loss * mask).sum() / mask.sum()  # Masking; mean loss on removed patches
         return loss
 
 
